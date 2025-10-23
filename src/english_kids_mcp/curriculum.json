@@ -1,0 +1,24 @@
+{
+  "tracks": {
+    "greetings": [
+      {"id": "gr1", "age": "3-6", "target": "Hi!", "patterns": ["Say: Hi!"]},
+      {"id": "gr2", "age": "3-6", "target": "Hello!", "patterns": ["Say: Hello!"]},
+      {"id": "gr3", "age": "3-6", "target": "Good morning!", "patterns": ["Say: Good morning!"]},
+      {"id": "gr4", "age": "5-10", "target": "How are you?", "patterns": ["Ask: How are you?", "Say: How are you today?"]},
+      {"id": "gr5", "age": "7-10", "target": "I'm fine, thank you.", "patterns": ["Say: I'm fine, thank you."]}
+    ],
+    "colors-numbers": [
+      {"id": "cn1", "age": "3-6", "target": "red", "patterns": ["Say: red."]},
+      {"id": "cn2", "age": "3-6", "target": "blue", "patterns": ["Say: blue."]},
+      {"id": "cn3", "age": "3-6", "target": "one, two, three", "patterns": ["Count: one, two, three."]}
+    ],
+    "daily-life": [
+      {"id": "dl1", "age": "5-10", "target": "I like apples.", "patterns": ["Say: I like apples."]},
+      {"id": "dl2", "age": "5-10", "target": "I want water.", "patterns": ["Say: I want water, please."]}
+    ],
+    "phonics": [
+      {"id": "ph1", "age": "5-8", "target": "b, b, ball", "patterns": ["Say: b, b, ball."]},
+      {"id": "ph2", "age": "5-8", "target": "p, p, pen", "patterns": ["Say: p, p, pen."]}
+    ]
+  }
+}
