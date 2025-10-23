@@ -20,18 +20,23 @@ class Settings:
     def load(cls) -> "Settings":
         """Construct settings from environment variables when available."""
 
+        defaults = cls()
         return cls(
             database_path=Path(
-                os.environ.get("MCP_DATABASE_PATH", cls.database_path.as_posix())
+                os.environ.get(
+                    "MCP_DATABASE_PATH", defaults.database_path.as_posix()
+                )
             ),
             faiss_index_path=Path(
-                os.environ.get("MCP_FAISS_INDEX_PATH", cls.faiss_index_path.as_posix())
+                os.environ.get(
+                    "MCP_FAISS_INDEX_PATH", defaults.faiss_index_path.as_posix()
+                )
             ),
             embedding_dim=int(
-                os.environ.get("MCP_EMBEDDING_DIM", str(cls.embedding_dim))
+                os.environ.get("MCP_EMBEDDING_DIM", str(defaults.embedding_dim))
             ),
             min_similarity=float(
-                os.environ.get("MCP_MIN_SIMILARITY", str(cls.min_similarity))
+                os.environ.get("MCP_MIN_SIMILARITY", str(defaults.min_similarity))
             ),
         )
 
