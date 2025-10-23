@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "english-kids-mcp"
+version = "0.2.0"
+description = "Model Context Protocol server for spoken English learning targeting Chinese children ages 3-10"
+authors = [{name = "Your Name", email = "you@example.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+]
+
+[project.scripts]
+kid-english-mcp = "english_kids_mcp.sse_server:main"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4",
+]
+faiss = [
+    "faiss-cpu>=1.7.4",
+]
+
+[project.urls]
+Homepage = "https://example.com/english-kids-mcp"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["english_kids_mcp"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+english_kids_mcp = [
+    "curriculum.json",
+    "references/**/*.txt",
+]
