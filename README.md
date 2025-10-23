@@ -21,6 +21,7 @@ The service is organised into three layers:
 2. **Persistence & enrichment** combines SQLite tables (`db.py`) with optional FAISS lookups (`vectorstore.py`) and vocabulary references loaded by `references.py`.
 3. **SSE delivery** (`sse_server.py`) hosts `/sse`, `/messages`, and `/.well-known/mcp.json` endpoints (with `/invoke` kept for backward compatibility) so external automations (e.g. n8n) can stream MCP tool responses straight into ASR/TTS pipelines.
 
+
 See [docs/SSE_TUTORIAL.md](docs/SSE_TUTORIAL.md) for an end-to-end walkthrough of the streaming API, including a curl session and the automated regression test that proves the wiring.
 
 ## Tool surface
@@ -77,7 +78,6 @@ Each activity includes `prompt_text`, `target_phrase`, `rubric`, `timebox_sec`, 
    ```bash
    kid-english-mcp --host 0.0.0.0 --port 8765
    ```
-
    The HTTP interface follows the Model Context Protocol SSE transport:
 
    - `GET /.well-known/mcp.json` – machine-readable manifest describing the tools.
