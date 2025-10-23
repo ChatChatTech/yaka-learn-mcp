@@ -19,7 +19,8 @@ The service is organised into three layers:
 
 1. **Core pedagogy engine** (`KidEnglishMCPServer` in `server.py`) keeps session state, awards XP/stickers, rotates curriculum cards, and applies the spaced-repetition scheduling helpers from `srs.py`.
 2. **Persistence & enrichment** combines SQLite tables (`db.py`) with optional FAISS lookups (`vectorstore.py`) and vocabulary references loaded by `references.py`.
-3. **SSE delivery** (`sse_server.py`) hosts `/sse` and `/invoke` endpoints so external automations (e.g. n8n) can stream MCP tool responses straight into ASR/TTS pipelines.
+3. **SSE delivery** (`sse_server.py`) hosts `/sse`, `/messages`, and `/.well-known/mcp.json` endpoints (with `/invoke` kept for backward compatibility) so external automations (e.g. n8n) can stream MCP tool responses straight into ASR/TTS pipelines.
+
 
 See [docs/SSE_TUTORIAL.md](docs/SSE_TUTORIAL.md) for an end-to-end walkthrough of the streaming API, including a curl session and the automated regression test that proves the wiring.
 
@@ -77,14 +78,14 @@ Each activity includes `prompt_text`, `target_phrase`, `rubric`, `timebox_sec`, 
    ```bash
    kid-english-mcp --host 0.0.0.0 --port 8765
    ```
+   The HTTP interface follows the Model Context Protocol SSE transport:
 
-   The server exposes:
-
-   - `GET /sse?stream=<id>` – opens an SSE stream (text/event-stream) for responses. If no `stream` is provided the server allocates one.
-   - `POST /invoke` – body `{"tool": "start_session", "arguments": {...}, "stream_id": "same-id"}` queues the tool call and streams the JSON payload back over SSE.
+   - `GET /.well-known/mcp.json` – machine-readable manifest describing the tools.
+   - `GET /sse?stream=<id>` – opens an SSE stream (text/event-stream) for responses. Omit `stream` to auto-generate an identifier.
+   - `POST /messages` – accepts JSON-RPC 2.0 payloads such as `{"jsonrpc":"2.0","method":"tools.list"}` and `{"jsonrpc":"2.0","method":"tools.call","params":{"name":"start_session","arguments":{...},"stream":"same-id"}}`.
    - `GET /healthz` – simple health probe.
 
-   You can skip `stream_id` to get an immediate JSON response (synchronous mode).
+   Calls without a `stream` field return immediately in the HTTP response. When a `stream` is provided, the request returns `202 Accepted` and the result (or error) is emitted on the matching SSE channel.
 
 4. **Embed the server** inside your adapter. Example:
 

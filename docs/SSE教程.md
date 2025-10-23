@@ -3,7 +3,7 @@
 本文演示如何独立运行 Kid English MCP 服务，并通过 Server-Sent Events (SSE) 与之通信。流程包括：
 
 1. 安装依赖、启动 SSE HTTP 服务；
-2. 通过 `/sse` 订阅事件流，使用 `/invoke` 调用 MCP 工具；
+2. 通过 `/sse` 订阅事件流，使用 `/messages` 发送 JSON-RPC MCP 请求；
 3. 观察返回的数据并正确关闭连接；
 4. 运行自动化测试（`pytest -k sse`）确认链路稳定。
 
@@ -35,7 +35,7 @@ Serving KidEnglish MCP SSE server on http://0.0.0.0:8765
 
 ## 3. 订阅事件并调用工具
 
-在第二个终端中订阅 SSE 流，可自定义 `stream` 参数，只要与 `/invoke` 请求体中的 `stream_id` 保持一致即可。
+在第二个终端中订阅 SSE 流，可自定义 `stream` 参数，只要与 JSON-RPC 请求体中的 `stream` 保持一致即可。
 
 ```bash
 curl -N http://127.0.0.1:8765/sse?stream=demo-stream
@@ -43,20 +43,25 @@ curl -N http://127.0.0.1:8765/sse?stream=demo-stream
 
 `-N` 参数会让 curl 持续输出心跳注释，直到收到事件数据。
 
-随后调用 MCP 工具，例如使用 `start_session` 为 5-6 岁的孩子开启问候主题的学习会话：
+随后调用 MCP 工具。HTTP 版 MCP 采用 JSON-RPC 2.0 协议，下面示例通过 `tools.call` 调用 `start_session`，为 5-6 岁的孩子开启问候主题的学习会话：
 
 ```bash
-curl -X POST http://127.0.0.1:8765/invoke \
+curl -X POST http://127.0.0.1:8765/messages \
   -H 'Content-Type: application/json' \
   -d '{
-        "tool": "start_session",
-        "arguments": {
-          "user_id": "kid-demo",
-          "age_band": "5-6",
-          "goal": "greetings",
-          "locale": "zh-CN"
-        },
-        "stream_id": "demo-stream"
+        "jsonrpc": "2.0",
+        "id": "demo-1",
+        "method": "tools.call",
+        "params": {
+          "name": "start_session",
+          "arguments": {
+            "user_id": "kid-demo",
+            "age_band": "5-6",
+            "goal": "greetings",
+            "locale": "zh-CN"
+          },
+          "stream": "demo-stream"
+        }
       }'
 ```
 
@@ -64,21 +69,26 @@ SSE 终端会收到：
 
 ```
 event: message
-data: {"id": "...", "tool": "start_session", "result": {"session_id": "...", "next_activity": {...}}}
+data: {"jsonrpc": "2.0", "id": "demo-1", "result": {"session_id": "...", "next_activity": {...}}, "done": true}
 ```
 
 使用返回的 `session_id` 继续提交口语文本或请求下一个活动：
 
 ```bash
-curl -X POST http://127.0.0.1:8765/invoke \
+curl -X POST http://127.0.0.1:8765/messages \
   -H 'Content-Type: application/json' \
   -d '{
-        "tool": "submit_utterance",
-        "arguments": {
-          "session_id": "<上一步返回的 SESSION>",
-          "utterance_text": "hello"
-        },
-        "stream_id": "demo-stream"
+        "jsonrpc": "2.0",
+        "id": "demo-2",
+        "method": "tools.call",
+        "params": {
+          "name": "submit_utterance",
+          "arguments": {
+            "session_id": "<上一步返回的 SESSION>",
+            "utterance_text": "hello"
+          },
+          "stream": "demo-stream"
+        }
       }'
 ```
 
@@ -86,7 +96,17 @@ curl -X POST http://127.0.0.1:8765/invoke \
 
 ### 同步模式
 
-如果在 `/invoke` 请求体中省略 `stream_id` 字段，服务器会直接以 JSON 形式同步返回结果。
+如果在 JSON-RPC 请求的 `params` 中省略 `stream`/`stream_id` 字段，服务器会直接以 JSON 形式同步返回结果。
+
+### 工具发现
+
+可先访问 `GET /.well-known/mcp.json` 或调用 `tools.list` 获取完整工具描述：
+
+```bash
+curl -X POST http://127.0.0.1:8765/messages \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":"meta","method":"tools.list"}'
+```
 
 ## 4. 自动化测试
 

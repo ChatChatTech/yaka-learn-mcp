@@ -20,6 +20,96 @@ from .evaluation import (
 )
 from .references import ReferenceLexicon
 from .schemas import Activity, Award, Feedback, ProgressSummary, SessionSnapshot
+
+
+TOOL_DESCRIPTIONS = {
+    "start_session": "Create or resume a tutoring session for a learner.",
+    "next_activity": "Fetch the next speaking prompt for the active session.",
+    "submit_utterance": "Score the learner utterance and advance the session loop.",
+    "set_goal": "Switch the curriculum goal mid-session.",
+    "get_progress": "Summarise the learner progress for caretakers.",
+    "save_note_for_parent": "Attach a Chinese note for parents to review.",
+}
+
+
+def _tool_input_schema(name: str) -> dict:
+    if name == "start_session":
+        return {
+            "type": "object",
+            "required": ["user_id", "age_band", "goal"],
+            "properties": {
+                "user_id": {"type": "string", "description": "Stable user identifier"},
+                "age_band": {
+                    "type": "string",
+                    "enum": ["3-4", "5-6", "7-8", "9-10"],
+                },
+                "goal": {
+                    "type": "string",
+                    "enum": [
+                        "greetings",
+                        "daily-life",
+                        "phonics",
+                        "colors-numbers",
+                        "custom",
+                    ],
+                },
+                "locale": {
+                    "type": "string",
+                    "enum": ["zh-CN", "zh-TW"],
+                    "default": "zh-CN",
+                },
+            },
+        }
+    if name == "next_activity":
+        return {
+            "type": "object",
+            "required": ["session_id"],
+            "properties": {"session_id": {"type": "string"}},
+        }
+    if name == "submit_utterance":
+        return {
+            "type": "object",
+            "required": ["session_id", "utterance_text"],
+            "properties": {
+                "session_id": {"type": "string"},
+                "utterance_text": {"type": "string"},
+                "latency_ms": {"type": "integer", "minimum": 0},
+            },
+        }
+    if name == "set_goal":
+        return {
+            "type": "object",
+            "required": ["session_id", "goal"],
+            "properties": {
+                "session_id": {"type": "string"},
+                "goal": {
+                    "type": "string",
+                    "enum": [
+                        "greetings",
+                        "daily-life",
+                        "phonics",
+                        "colors-numbers",
+                        "custom",
+                    ],
+                },
+            },
+        }
+    if name == "get_progress":
+        return {
+            "type": "object",
+            "required": ["user_id"],
+            "properties": {"user_id": {"type": "string"}},
+        }
+    if name == "save_note_for_parent":
+        return {
+            "type": "object",
+            "required": ["session_id", "note_cn"],
+            "properties": {
+                "session_id": {"type": "string"},
+                "note_cn": {"type": "string"},
+            },
+        }
+    raise KeyError(f"Unknown tool {name}")
 from .srs import SRSItem, SRSState
 from .vectorstore import VectorItem, VectorStore
 
@@ -236,8 +326,37 @@ class KidEnglishMCPServer:
             due_reviews=due_reviews,
         )
 
-    def save_note_for_parent(self, session_id: str, note_cn: str) -> None:
-        self.store.save_parent_note(session_id, note_cn, _now_ts())
+    def save_note_for_parent(self, session_id: str, note_cn: str) -> dict:
+        timestamp = _now_ts()
+        self.store.save_parent_note(session_id, note_cn, timestamp)
+        return {"status": "ok", "timestamp": timestamp}
+
+    # ------------------------------------------------------------------
+    # MCP metadata helpers
+
+    def list_tools(self) -> dict:
+        """Return tool metadata for MCP discovery."""
+
+        tools = []
+        for name, description in TOOL_DESCRIPTIONS.items():
+            tools.append(
+                {
+                    "name": name,
+                    "description": description,
+                    "input_schema": _tool_input_schema(name),
+                }
+            )
+        return {"tools": tools}
+
+    def call_tool(self, name: str, arguments: Dict[str, object]) -> object:
+        """Invoke a public tool method in a transport-friendly fashion."""
+
+        if not hasattr(self, name):
+            raise ValueError(f"Unknown tool: {name}")
+        method = getattr(self, name)
+        if not callable(method):
+            raise ValueError(f"Attribute {name} is not callable")
+        return method(**arguments)
 
     # ------------------------------------------------------------------
     # Internal helpers

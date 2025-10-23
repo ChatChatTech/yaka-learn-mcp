@@ -6,7 +6,7 @@
 
 1. **教学核心**：`server.py` 中的 `KidEnglishMCPServer` 负责管理会话、发放 XP/贴纸、挑选教学卡片，并结合 `srs.py` 实现简化的间隔复习。
 2. **数据与扩展**：`db.py` 使用 SQLite 持久化学习进度，`vectorstore.py`/`references.py` 则提供可选的向量检索和分级词汇扩展能力。
-3. **SSE 对外服务**：`sse_server.py` 暴露 `/sse` 与 `/invoke` 接口，方便 MCP 兼容客户端或 n8n 直接通过事件流消费结果。
+3. **SSE 对外服务**：`sse_server.py` 按 MCP 规范暴露 `/sse`、`/messages` 与 `/.well-known/mcp.json`，方便 MCP 兼容客户端或 n8n 直接通过事件流消费结果。
 
 更多使用细节见 [docs/SSE教程.md](docs/SSE教程.md)，内含 curl 示例与自动化测试说明。
 
@@ -35,11 +35,12 @@
 
    可用接口：
 
+   - `GET /.well-known/mcp.json`：返回工具清单与端点描述。
    - `GET /sse?stream=<id>`：订阅 SSE 事件流；若省略 `stream` 参数，服务器会生成一个随机 ID。
-   - `POST /invoke`：`{"tool": "start_session", "arguments": {...}, "stream_id": "同一个 id"}` 调用工具；
+   - `POST /messages`：发送 JSON-RPC 2.0 请求，例如 `{"jsonrpc":"2.0","method":"tools.list"}` 或 `{"jsonrpc":"2.0","method":"tools.call","params":{"name":"start_session","arguments":{...},"stream":"同一个 id"}}`。
    - `GET /healthz`：健康检查。
 
-   如果省略 `stream_id`，会直接以 JSON 响应返回结果（同步模式）。
+   若 `tools.call` 的 `params` 中未包含 `stream`/`stream_id` 字段，会以同步 JSON 形式直接返回；如果提供了 `stream`，HTTP 响应将返回 `202 Accepted`，真正的结果或错误会通过同一个 SSE 连接推送。
 
 3. **在代码中调用**
 
@@ -54,7 +55,7 @@
 4. **接入 n8n**
 
    - Webhook 接收 ASR 文本；
-   - HTTP 节点调用 `/invoke`，或直接调用 `KidEnglishMCPServer`；
+   - HTTP 节点调用 `/messages`（`tools.call`），或直接调用 `KidEnglishMCPServer`；
    - 将 `feedback_text` 发往 TTS，`next_activity.prompt_text` 用于 UI 提示。
 
 ## 词汇参考目录

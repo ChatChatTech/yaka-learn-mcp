@@ -33,6 +33,7 @@ def test_sse_server_flow(tmp_path):
         embedding_dim=32,
     )
     server = run_sse_server(host="127.0.0.1", port=0, settings=settings)
+    meta_conn = None
     try:
         host, port = server.server_address
         stream_id = f"test-{uuid.uuid4().hex}"
@@ -46,20 +47,25 @@ def test_sse_server_flow(tmp_path):
 
         payload = json.dumps(
             {
-                "tool": "start_session",
-                "arguments": {
-                    "user_id": "kid-sse",
-                    "age_band": "5-6",
-                    "goal": "greetings",
-                    "locale": "zh-CN",
+                "jsonrpc": "2.0",
+                "id": "req-1",
+                "method": "tools.call",
+                "params": {
+                    "name": "start_session",
+                    "arguments": {
+                        "user_id": "kid-sse",
+                        "age_band": "5-6",
+                        "goal": "greetings",
+                        "locale": "zh-CN",
+                    },
+                    "stream": stream_id,
                 },
-                "stream_id": stream_id,
             }
         )
         poster = http.client.HTTPConnection(host, port, timeout=5)
         poster.request(
             "POST",
-            "/invoke",
+            "/messages",
             body=payload,
             headers={"Content-Type": "application/json"},
         )
@@ -67,13 +73,32 @@ def test_sse_server_flow(tmp_path):
         assert post_response.status == 202
 
         event = _read_sse_event(response)
-        assert event["tool"] == "start_session"
+        assert event["jsonrpc"] == "2.0"
+        assert event["id"] == "req-1"
         result = event["result"]
         assert "session_id" in result
         assert "next_activity" in result
         assert result["next_activity"]["prompt_text"]
+
+        # synchronous JSON-RPC call for discovery
+        meta_conn = http.client.HTTPConnection(host, port, timeout=5)
+        meta_payload = json.dumps(
+            {"jsonrpc": "2.0", "id": "req-meta", "method": "tools.list"}
+        )
+        meta_conn.request(
+            "POST",
+            "/messages",
+            body=meta_payload,
+            headers={"Content-Type": "application/json"},
+        )
+        meta_response = meta_conn.getresponse()
+        assert meta_response.status == 200
+        meta_data = json.loads(meta_response.read().decode("utf-8"))
+        assert meta_data["result"]["tools"]
     finally:
         conn.close()
         poster.close()
+        if meta_conn:
+            meta_conn.close()
         server.shutdown()
         server.server_close()

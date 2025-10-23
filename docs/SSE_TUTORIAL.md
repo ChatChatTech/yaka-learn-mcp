@@ -4,7 +4,7 @@ This walkthrough shows how to run the Kid English MCP server as a standalone pro
 Server-Sent Events (SSE) from a terminal client. By the end you will:
 
 1. Install the package and launch the SSE HTTP bridge.
-2. Subscribe to `/sse` and issue tool invocations through `/invoke`.
+2. Subscribe to `/sse` and issue JSON-RPC tool invocations through `/messages`.
 3. Inspect the streamed payloads and close the session cleanly.
 4. Re-run the automated regression test (`pytest -k sse`) to verify the integration.
 
@@ -40,7 +40,7 @@ Leave this process running while you experiment with the client in the next step
 ## 3. Subscribe and invoke tools
 
 Open a second terminal session (or use another tab) and subscribe to the SSE stream. You can choose
-any `stream` identifier; it just needs to match the one you post in the `/invoke` body.
+any `stream` identifier; it just needs to match the one you post in the JSON-RPC payload.
 
 ```bash
 curl -N http://127.0.0.1:8765/sse?stream=demo-stream
@@ -48,21 +48,27 @@ curl -N http://127.0.0.1:8765/sse?stream=demo-stream
 
 The `-N` flag keeps the connection open so curl prints heartbeat comments until a message arrives.
 
-With the stream open, issue a tool call. The following example uses the MCP `start_session` tool to
-create a learner session for a 5–6 year old practising greetings.
+With the stream open, issue a tool call. MCP over HTTP expects JSON-RPC 2.0 payloads. The following
+example uses the `tools.call` method to invoke `start_session` and create a learner session for a
+5–6 year old practising greetings.
 
 ```bash
-curl -X POST http://127.0.0.1:8765/invoke \
+curl -X POST http://127.0.0.1:8765/messages \
   -H 'Content-Type: application/json' \
   -d '{
-        "tool": "start_session",
-        "arguments": {
-          "user_id": "kid-demo",
-          "age_band": "5-6",
-          "goal": "greetings",
-          "locale": "zh-CN"
-        },
-        "stream_id": "demo-stream"
+        "jsonrpc": "2.0",
+        "id": "demo-1",
+        "method": "tools.call",
+        "params": {
+          "name": "start_session",
+          "arguments": {
+            "user_id": "kid-demo",
+            "age_band": "5-6",
+            "goal": "greetings",
+            "locale": "zh-CN"
+          },
+          "stream": "demo-stream"
+        }
       }'
 ```
 
@@ -70,21 +76,26 @@ The SSE terminal prints a JSON event when the tool completes:
 
 ```
 event: message
-data: {"id": "...", "tool": "start_session", "result": {"session_id": "...", "next_activity": {...}}}
+data: {"jsonrpc": "2.0", "id": "demo-1", "result": {"session_id": "...", "next_activity": {...}}, "done": true}
 ```
 
 Use the returned `session_id` to submit utterances or fetch the next activity:
 
 ```bash
-curl -X POST http://127.0.0.1:8765/invoke \
+curl -X POST http://127.0.0.1:8765/messages \
   -H 'Content-Type: application/json' \
   -d '{
-        "tool": "submit_utterance",
-        "arguments": {
-          "session_id": "<SESSION FROM PREVIOUS STEP>",
-          "utterance_text": "hello"
-        },
-        "stream_id": "demo-stream"
+        "jsonrpc": "2.0",
+        "id": "demo-2",
+        "method": "tools.call",
+        "params": {
+          "name": "submit_utterance",
+          "arguments": {
+            "session_id": "<SESSION FROM PREVIOUS STEP>",
+            "utterance_text": "hello"
+          },
+          "stream": "demo-stream"
+        }
       }'
 ```
 
@@ -93,9 +104,19 @@ once you are done.
 
 ### Synchronous (non-streaming) mode
 
-If you omit `stream_id` in the `/invoke` payload the server responds synchronously with a JSON
-object. This is useful for scripts that do not require SSE but still want to reuse the standalone
-bridge.
+If you omit the `stream` field inside `params` the server responds synchronously with a JSON object.
+This is useful for scripts that do not require SSE but still want to reuse the standalone bridge.
+
+### Discovering tools via JSON-RPC
+
+Before streaming you can inspect the server manifest (`GET /.well-known/mcp.json`) or call the
+`tools.list` method to retrieve the machine-readable tool metadata:
+
+```bash
+curl -X POST http://127.0.0.1:8765/messages \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":"meta","method":"tools.list"}'
+```
 
 ## 4. Verify with the automated test
 
